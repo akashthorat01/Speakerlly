@@ -1,0 +1,14 @@
+{
+  "name": "angelina-speak-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:web": "cd apps/web && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
+    "install:all": "npm install concurrently && cd apps/web && npm install && cd ../../server && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
