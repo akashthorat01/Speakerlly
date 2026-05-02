@@ -1,1 +1,15 @@
-node_modules
+node_modules/
+.env
+.env.*
+!.env.example
+.expo/
+android/
+ios/
+dist/
+build/
+.DS_Store
+coverage/
+*.log
+target/
+*.class
+apps/mobile/.git_backup/
