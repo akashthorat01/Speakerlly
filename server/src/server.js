@@ -26,12 +26,19 @@ const aiRoutes = require('./routes/aiRoutes');
 const trainerRoutes = require('./routes/trainerRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const userRoutes = require('./routes/userRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/trainers', trainerRoutes);
+app.use('/api/trainers', trainerRoutes);
+app.use('/trainers', trainerRoutes);
 app.use('/api/v1/sessions', sessionRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/bookings', bookingRoutes);
 
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', message: 'Angelina AI Server is running' });

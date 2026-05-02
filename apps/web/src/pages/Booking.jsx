@@ -1,32 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar as CalendarIcon, Clock, CheckCircle2, Star, ShieldCheck, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
-import axios from 'axios';
+import { getTrainer } from '../api/trainerService';
+import { createBooking } from '../api/bookingService';
+import { createOrder, verifyPayment } from '../api/paymentService';
 
 const Booking = () => {
     const { user } = useAuthStore();
     const { trainerId } = useParams();
     const navigate = useNavigate();
     
-    // Mock Trainer Data
-    const trainer = {
-        name: "Sarah Jenkins",
-        image: "https://i.pravatar.cc/150?img=32",
-        rating: 4.9,
-        reviews: 124,
-        price: 500,
-        accent: "British"
-    };
-
+    const [trainer, setTrainer] = useState(null);
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedTime, setSelectedTime] = useState(null);
-    const [step, setStep] = useState(1); // 1: DateTime, 2: Payment, 3: Success
+    const [step, setStep] = useState(1);
     const [isBooking, setIsBooking] = useState(false);
 
-    const dates = ["Today, Oct 24", "Tomorrow, Oct 25", "Wed, Oct 26", "Thu, Oct 27"];
-    const times = ["09:00 AM", "10:30 AM", "02:00 PM", "04:00 PM", "06:00 PM", "08:30 PM"];
+    useEffect(() => {
+        const fetchTrainer = async () => {
+            try {
+                const data = await getTrainer(trainerId);
+                setTrainer(data);
+            } catch(e) {
+                console.error(e);
+            }
+        };
+        fetchTrainer();
+    }, [trainerId]);
+
+    const dates = ["2023-11-24", "2023-11-25", "2023-11-26"];
+    const times = ["09:00:00", "10:30:00", "14:00:00", "16:00:00"];
 
     const handleConfirm = async () => {
         if(step === 1) setStep(2);
@@ -39,19 +44,54 @@ const Booking = () => {
 
             setIsBooking(true);
             try {
-                // Razorpay Payment Simulation Gateway
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                // 1. Create order
+                const orderData = await createOrder('PRO');
+
+                // 2. Open Razorpay
+                const options = {
+                    key: orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID, 
+                    amount: orderData.amount,
+                    currency: orderData.currency,
+                    name: "Speakerly",
+                    description: `Pro Plan Payment`,
+                    order_id: orderData.orderId,
+                    handler: async function (response) {
+                         try {
+                             await verifyPayment({
+                                 razorpayOrderId: response.razorpay_order_id,
+                                 razorpayPaymentId: response.razorpay_payment_id,
+                                 razorpaySignature: response.razorpay_signature,
+                                 planType: 'PRO'
+                             });
+                             
+                             // 3. Create Booking
+                             await createBooking({
+                                 trainerId: parseInt(trainerId),
+                                 slotDate: selectedDate,
+                                 slotTime: selectedTime
+                             });
+
+                             setStep(3);
+                             setTimeout(() => navigate('/history'), 3000);
+                         } catch (err) {
+                             alert("Payment verification failed! Please contact support.");
+                         }
+                    },
+                    prefill: {
+                        name: user.name || "",
+                        email: user.email || ""
+                    },
+                    theme: {
+                        color: "#2563EB"
+                    }
+                };
                 
-                await axios.post('http://localhost:5000/api/v1/sessions/book', {
-                    trainerId: trainerId,
-                    date: selectedDate,
-                    time: selectedTime,
-                    price: trainer.price,
-                    userId: user.user?.id || user._id || user.id
+                const rzp = new window.Razorpay(options);
+                rzp.on('payment.failed', function (response){
+                    alert("Payment Failed! " + response.error.description);
                 });
-                
-                setStep(3);
-                setTimeout(() => navigate('/history'), 3000); 
+                rzp.open();
+
             } catch (error) {
                 console.error("Failed to book:", error);
                 alert("Failed to confirm booking. Please try again.");
@@ -124,8 +164,8 @@ const Booking = () => {
                                </h2>
                                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-6">
                                    <div className="flex justify-between items-center mb-4">
-                                       <span className="text-slate-600 font-medium">Session Fee</span>
-                                       <span className="text-slate-900 font-bold">₹{trainer.price}</span>
+                                       <span className="text-slate-600 font-medium">Pro Plan Fee</span>
+                                       <span className="text-slate-900 font-bold">₹500</span>
                                    </div>
                                    <div className="flex justify-between items-center mb-4">
                                        <span className="text-slate-600 font-medium flex items-center gap-1">Taxes & Fees</span>
@@ -134,7 +174,7 @@ const Booking = () => {
                                    <div className="w-full h-px bg-slate-200 my-5"></div>
                                    <div className="flex justify-between items-center text-xl">
                                        <span className="text-slate-900 font-black">Total to Pay</span>
-                                       <span className="text-blue-600 font-black tracking-tight">₹{trainer.price}</span>
+                                       <span className="text-blue-600 font-black tracking-tight">₹500</span>
                                    </div>
                                </div>
 
@@ -150,7 +190,7 @@ const Booking = () => {
                                     <CheckCircle2 size={48} />
                                 </div>
                                 <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Booking Confirmed!</h2>
-                                <p className="text-slate-500 font-medium max-w-sm mb-10 leading-relaxed text-lg">Your session with <strong>{trainer.name}</strong> is confirmed for <br/><span className="text-slate-800">{selectedDate} at {selectedTime}</span>.</p>
+                                <p className="text-slate-500 font-medium max-w-sm mb-10 leading-relaxed text-lg">Your session with <strong>{trainer?.name}</strong> is confirmed for <br/><span className="text-slate-800">{selectedDate} at {selectedTime}</span>.</p>
                                 <div className="animate-pulse flex items-center gap-2 text-blue-600 font-bold bg-blue-50 px-6 py-3 rounded-xl">
                                     <Clock size={20} /> Redirecting to your sessions...
                                 </div>
@@ -164,11 +204,11 @@ const Booking = () => {
                             <h3 className="font-bold text-xl mb-6 tracking-tight">Session Summary</h3>
                             
                             <div className="flex items-center gap-4 mb-8">
-                                <img src={trainer.image} alt={trainer.name} className="w-16 h-16 rounded-full border-2 border-slate-600 object-cover" />
+                                <img src={trainer?.demoVideoUrl || 'https://i.pravatar.cc/150'} alt={trainer?.name} className="w-16 h-16 rounded-full border-2 border-slate-600 object-cover" />
                                 <div>
-                                    <h4 className="font-bold text-lg">{trainer.name}</h4>
+                                    <h4 className="font-bold text-lg">{trainer?.name}</h4>
                                     <p className="text-slate-400 text-sm flex items-center gap-1 font-medium mt-0.5">
-                                        <Star size={14} className="text-yellow-400 fill-yellow-400" /> {trainer.rating} • {trainer.accent}
+                                        <Star size={14} className="text-yellow-400 fill-yellow-400" /> {trainer?.ratingAvg} • {trainer?.specialisation}
                                     </p>
                                 </div>
                             </div>
@@ -198,7 +238,7 @@ const Booking = () => {
                                     }`}
                                 >
                                     {isBooking ? <Loader2 className="animate-spin text-white" /> : (
-                                        step === 1 ? 'Proceed to Payment' : `Pay ₹${trainer.price} via Razorpay`
+                                        step === 1 ? 'Proceed to Payment' : `Pay ₹500 via Razorpay`
                                     )}
                                 </button>
                             )}

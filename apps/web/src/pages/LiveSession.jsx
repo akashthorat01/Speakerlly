@@ -1,53 +1,135 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Maximize, Loader2 } from 'lucide-react';
+import AgoraRTC from 'agora-rtc-sdk-ng';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { startSession, endSession } from '../api/sessionService';
+import { useAuthStore } from '../store/authStore';
+
+const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
 const LiveSession = () => {
-  const { roomId } = useParams();
+  const { roomId } = useParams(); // used as bookingId
   const navigate = useNavigate();
-  const [stream, setStream] = useState(null);
+  const { user } = useAuthStore();
+  
+  const [localAudioTrack, setLocalAudioTrack] = useState(null);
+  const [localVideoTrack, setLocalVideoTrack] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [remoteUsers, setRemoteUsers] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
   
-  const myVideoRef = useRef();
-  const peerVideoRef = useRef();
-  
-  useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((mediaStream) => {
-        setStream(mediaStream);
-        if (myVideoRef.current) {
-          myVideoRef.current.srcObject = mediaStream;
-        }
-      })
-      .catch((error) => console.error("Media Error:", error));
+  const myVideoContainer = useRef(null);
 
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+  useEffect(() => {
+    let audioTrack;
+    let videoTrack;
+    let isUnmounted = false;
+    
+    const initAgora = async () => {
+      try {
+        // 1. Hit API to start session and get token
+        const sessionData = await startSession(roomId);
+        if (isUnmounted) return;
+        setSessionId(sessionData.sessionId);
+        
+        // 2. Join Agora Channel
+        const appId = import.meta.env.VITE_AGORA_APP_ID || "dummydummy";
+        const channelName = sessionData.channelName;
+        const token = sessionData.token;
+        const uid = user.id;
+
+        await client.join(appId, channelName, token, uid);
+        
+        // 3. Create Local Tracks
+        [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+        if (isUnmounted) {
+            audioTrack.close();
+            videoTrack.close();
+            return;
+        }
+        setLocalAudioTrack(audioTrack);
+        setLocalVideoTrack(videoTrack);
+        
+        // Publish local tracks
+        await client.publish([audioTrack, videoTrack]);
+        
+        // Play local video
+        if (myVideoContainer.current) {
+            videoTrack.play(myVideoContainer.current);
+        }
+        
+        // 4. Handle remote users
+        client.on("user-published", async (remoteUser, mediaType) => {
+          await client.subscribe(remoteUser, mediaType);
+          if (mediaType === "video") {
+            setRemoteUsers(prev => [...prev.filter(u => u.uid !== remoteUser.uid), remoteUser]);
+          }
+          if (mediaType === "audio") {
+            remoteUser.audioTrack.play();
+          }
+        });
+
+        client.on("user-unpublished", (remoteUser, mediaType) => {
+          if (mediaType === "video") {
+            setRemoteUsers(prev => prev.filter(u => u.uid !== remoteUser.uid));
+          }
+        });
+
+        client.on("user-left", (remoteUser) => {
+          setRemoteUsers(prev => prev.filter(u => u.uid !== remoteUser.uid));
+        });
+
+      } catch (error) {
+        console.error("Agora Init Error:", error);
       }
     };
-  }, []);
+
+    initAgora();
+
+    return () => {
+      isUnmounted = true;
+      if (audioTrack) {
+        audioTrack.close();
+      }
+      if (videoTrack) {
+        videoTrack.close();
+      }
+      client.removeAllListeners();
+      client.leave();
+    };
+  }, [roomId, user]);
+
+  useEffect(() => {
+     // Side effect to play remote user tracks when they are added to the DOM
+     remoteUsers.forEach(remoteUser => {
+         const playerContainer = document.getElementById(`remote-user-${remoteUser.uid}`);
+         if (playerContainer && !playerContainer.hasChildNodes()) {
+             remoteUser.videoTrack.play(playerContainer);
+         }
+     });
+  }, [remoteUsers]);
 
   const toggleMute = () => {
-    if (stream) {
-        stream.getAudioTracks()[0].enabled = !stream.getAudioTracks()[0].enabled;
-        setIsMuted(!stream.getAudioTracks()[0].enabled);
+    if (localAudioTrack) {
+      localAudioTrack.setMuted(!isMuted);
+      setIsMuted(!isMuted);
     }
   };
 
   const toggleVideo = () => {
-    if (stream) {
-        stream.getVideoTracks()[0].enabled = !stream.getVideoTracks()[0].enabled;
-        setIsVideoOff(!stream.getVideoTracks()[0].enabled);
+    if (localVideoTrack) {
+      localVideoTrack.setMuted(!isVideoOff);
+      setIsVideoOff(!isVideoOff);
     }
   };
 
-  const endCall = () => {
-      // Logic to send session duration to backend goes here
-      navigate('/');
+  const handleEndCall = async () => {
+      if (sessionId) {
+          await endSession(sessionId);
+      }
+      navigate('/history');
   };
 
   return (
@@ -65,28 +147,24 @@ const LiveSession = () => {
             
             {/* Peer Video */}
             <div className="relative w-full md:w-2/3 h-[50vh] md:h-full bg-slate-800/50 rounded-[2rem] overflow-hidden shadow-2xl shadow-blue-900/10 border border-slate-700/50 flex flex-col items-center justify-center backdrop-blur-sm">
-                <video 
-                    ref={peerVideoRef} 
-                    autoPlay 
-                    playsInline 
-                    className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <Loader2 size={36} className="text-blue-500 animate-spin mb-4" />
-                    <p className="text-slate-400 font-semibold tracking-wide">Waiting for trainer to connect...</p>
-                </div>
+                
+                {remoteUsers.length > 0 ? (
+                    <div id={`remote-user-${remoteUsers[0].uid}`} className="w-full h-full"></div>
+                ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <Loader2 size={36} className="text-blue-500 animate-spin mb-4" />
+                        <p className="text-slate-400 font-semibold tracking-wide">Waiting for trainer to connect...</p>
+                    </div>
+                )}
                 <div className="absolute bottom-6 left-6 bg-slate-900/60 backdrop-blur-md text-white px-4 py-2 rounded-xl text-sm font-semibold border border-white/10 shadow-lg">Speaker View</div>
             </div>
 
             {/* My Video */}
             <div className="relative w-1/3 md:w-1/3 min-w-[200px] h-[30vh] md:h-[40vh] max-h-[500px] bg-slate-800 rounded-[2rem] overflow-hidden shadow-2xl border border-slate-700 right-4 md:right-0 absolute md:relative bottom-32 md:bottom-0 self-end md:self-auto">
-                <video 
-                    ref={myVideoRef} 
-                    autoPlay 
-                    muted 
-                    playsInline 
+                <div 
+                    ref={myVideoContainer} 
                     className={`w-full h-full object-cover transform -scale-x-100 transition-opacity duration-300 ${isVideoOff ? 'opacity-0' : 'opacity-100'}`}
-                />
+                ></div>
                 {isVideoOff && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
                         <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center text-slate-500 border border-slate-700">
@@ -114,7 +192,7 @@ const LiveSession = () => {
                 <MessageSquare size={24} />
             </button>
             <div className="w-px h-10 bg-white/20 mx-2"></div>
-            <button onClick={endCall} className="w-16 h-16 rounded-full flex items-center justify-center transition-all bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/40 cursor-pointer group">
+            <button onClick={handleEndCall} className="w-16 h-16 rounded-full flex items-center justify-center transition-all bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/40 cursor-pointer group">
                 <PhoneOff size={28} className="group-hover:scale-110 transition-transform" />
             </button>
         </motion.div>

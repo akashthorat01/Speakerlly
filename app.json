@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "ace7cf07-7997-4e1f-ae5f-88cdb5922e21"
+      }
+    },
+    "android": {
+      "package": "com.akashathorat01.angelinaspeakapp"
+    },
+    "ios": {
+      "bundleIdentifier": "com.akashathorat01.angelinaspeakapp"
+    }
+  }
+}

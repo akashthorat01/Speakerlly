@@ -126,7 +126,7 @@ const Auth = () => {
                   </label>
                 </div>
                 <div className="text-sm">
-                  <button type="button" onClick={() => alert("Password reset link sent to your email!")} className="font-bold text-blue-600 hover:text-blue-500 cursor-pointer">Forgot your password?</button>
+                  <span className="font-bold text-slate-400 cursor-not-allowed">Forgot your password?</span>
                 </div>
               </div>
             )}
@@ -145,25 +145,7 @@ const Auth = () => {
               </motion.button>
             </div>
             
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-slate-500 font-medium tracking-wide text-xs uppercase">Or continue with</span>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => alert("Google OAuth requires verified API origins. Please use Email/Password Signup.")} className="w-full inline-flex justify-center items-center gap-2 py-2.5 px-4 border border-slate-200 rounded-xl shadow-sm bg-white text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
-                   Google
-                </button>
-                <button type="button" onClick={() => alert("Apple OAuth requires verified API origins. Please use Email/Password Signup.")} className="w-full inline-flex justify-center items-center gap-2 py-2.5 px-4 border border-slate-200 rounded-xl shadow-sm bg-white text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
-                   Apple
-                </button>
-              </div>
-            </div>
+            <div className="mt-2"></div>
 
           </form>
         </motion.div>

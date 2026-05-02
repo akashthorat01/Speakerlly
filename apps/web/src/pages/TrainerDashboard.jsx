@@ -3,21 +3,25 @@ import { useAuthStore } from '../store/authStore';
 import { Calendar, Wallet, CheckCircle2, XCircle, Clock, Loader2, Video, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { getTrainerBookings, acceptBooking, rejectBooking } from '../api/bookingService';
+import { getEarningsHistory } from '../api/earningsService';
 
 const TrainerDashboard = () => {
     const { user, logout } = useAuthStore();
     const navigate = useNavigate();
-    const [sessions, setSessions] = useState([]);
-    const [trainerData, setTrainerData] = useState(null);
+    const [bookings, setBookings] = useState([]);
+    const [earnings, setEarnings] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const fetchTrainerData = async () => {
             try {
-                const { data } = await axios.get(`http://localhost:5000/api/v1/sessions/trainer-sessions?userId=${user._id || user.id}`);
-                setSessions(data.sessions);
-                setTrainerData(data.trainer);
+                const [bookingsData, earningsData] = await Promise.all([
+                    getTrainerBookings(),
+                    getEarningsHistory()
+                ]);
+                setBookings(bookingsData || []);
+                setEarnings(earningsData || []);
             } catch (error) {
                 console.error("Failed to load trainer data:", error);
             } finally {
@@ -32,12 +36,21 @@ const TrainerDashboard = () => {
         navigate('/auth');
     }
 
-    const updateStatus = async (sessionId, newStatus) => {
+    const handleAccept = async (bookingId) => {
         try {
-            await axios.put(`http://localhost:5000/api/v1/sessions/${sessionId}/status`, { status: newStatus });
-            setSessions(prev => prev.map(s => s._id === sessionId ? { ...s, status: newStatus } : s));
+            await acceptBooking(bookingId);
+            setBookings(prev => prev.map(s => s.id === bookingId ? { ...s, status: 'CONFIRMED' } : s));
         } catch (error) {
-            alert("Failed to update status");
+            alert("Failed to accept booking");
+        }
+    }
+
+    const handleReject = async (bookingId) => {
+        try {
+            await rejectBooking(bookingId);
+            setBookings(prev => prev.map(s => s.id === bookingId ? { ...s, status: 'REJECTED' } : s));
+        } catch (error) {
+            alert("Failed to reject booking");
         }
     }
 
@@ -45,8 +58,9 @@ const TrainerDashboard = () => {
         return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600 w-10 h-10" /></div>;
     }
 
-    const pendingRequests = sessions.filter(s => s.status === 'scheduled');
-    const acceptedSessions = sessions.filter(s => s.status === 'accepted');
+    const pendingRequests = bookings.filter(s => s.status === 'PENDING');
+    const acceptedSessions = bookings.filter(s => s.status === 'CONFIRMED');
+    const totalEarnings = earnings.reduce((sum, e) => sum + e.amount, 0);
 
     return (
         <div className="min-h-screen bg-slate-900 text-white pb-20">
@@ -54,8 +68,8 @@ const TrainerDashboard = () => {
             <div className="bg-slate-800 border-b border-slate-700 p-8 shadow-lg">
                 <div className="max-w-6xl mx-auto flex justify-between items-end">
                     <div>
-                        <div className="text-blue-400 font-bold uppercase tracking-widest text-xs mb-2 flex items-center gap-2"><div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div> Speakerlly For Trainers</div>
-                        <h1 className="text-3xl font-black">Welcome back, {user.name.split(' ')[0]}</h1>
+                        <div className="text-blue-400 font-bold uppercase tracking-widest text-xs mb-2 flex items-center gap-2"><div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div> Speakerly For Trainers</div>
+                        <h1 className="text-3xl font-black">Welcome back, {user.name?.split(' ')[0]}</h1>
                     </div>
                     <button onClick={handleLogout} className="text-slate-400 hover:text-white flex items-center gap-2 font-bold cursor-pointer transition-colors">
                         <LogOut size={18} /> Logout
@@ -74,13 +88,13 @@ const TrainerDashboard = () => {
                             </div>
                             <div>
                                 <h3 className="text-slate-400 font-medium">Total Earnings</h3>
-                                <p className="text-2xl font-black">₹{trainerData?.earnings || 0}</p>
+                                <p className="text-2xl font-black">₹{totalEarnings || 0}</p>
                             </div>
                         </div>
 
                         <div className="bg-slate-900/50 p-4 rounded-2xl mb-4 border border-slate-700">
                             <p className="text-sm font-bold text-slate-300 flex justify-between">
-                                Sessions Completed <span className="text-white">{trainerData?.completed_sessions || 0}</span>
+                                Sessions Completed <span className="text-white">{bookings.filter(s => s.status === 'COMPLETED').length}</span>
                             </p>
                         </div>
                         
@@ -107,20 +121,20 @@ const TrainerDashboard = () => {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {pendingRequests.map(session => (
-                                    <div key={session._id} className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-md flex flex-col sm:flex-row justify-between items-center gap-4">
+                                {pendingRequests.map(booking => (
+                                    <div key={booking.id} className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-md flex flex-col sm:flex-row justify-between items-center gap-4">
                                         <div>
                                             <p className="text-xs text-amber-500 font-bold uppercase tracking-wider mb-1">New Request</p>
-                                            <h3 className="text-lg font-bold">{session.user_id.name}</h3>
+                                            <h3 className="text-lg font-bold">{booking.user?.name}</h3>
                                             <p className="text-slate-400 text-sm mt-1 flex items-center gap-2">
-                                                <Calendar size={14} /> {new Date(session.scheduled_at).toLocaleString()}
+                                                <Calendar size={14} /> {new Date(booking.slotDate).toLocaleDateString()} at {booking.slotTime}
                                             </p>
                                         </div>
                                         <div className="flex gap-2 w-full sm:w-auto">
-                                            <button onClick={() => updateStatus(session._id, 'rejected')} className="flex-1 sm:flex-none px-4 py-2 bg-slate-700 hover:bg-red-500/20 hover:text-red-400 text-slate-300 rounded-xl font-bold transition-colors cursor-pointer text-sm">
+                                            <button onClick={() => handleReject(booking.id)} className="flex-1 sm:flex-none px-4 py-2 bg-slate-700 hover:bg-red-500/20 hover:text-red-400 text-slate-300 rounded-xl font-bold transition-colors cursor-pointer text-sm">
                                                 Decline
                                             </button>
-                                            <button onClick={() => updateStatus(session._id, 'accepted')} className="flex-1 sm:flex-none px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors shadow-lg shadow-blue-500/20 cursor-pointer text-sm">
+                                            <button onClick={() => handleAccept(booking.id)} className="flex-1 sm:flex-none px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors shadow-lg shadow-blue-500/20 cursor-pointer text-sm">
                                                 Accept
                                             </button>
                                         </div>
@@ -141,15 +155,15 @@ const TrainerDashboard = () => {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {acceptedSessions.map(session => (
-                                    <div key={session._id} className="bg-gradient-to-r from-blue-900/40 to-slate-800 p-6 rounded-3xl border border-blue-500/20 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
+                                {acceptedSessions.map(booking => (
+                                    <div key={booking.id} className="bg-gradient-to-r from-blue-900/40 to-slate-800 p-6 rounded-3xl border border-blue-500/20 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
                                         <div>
-                                            <h3 className="text-lg font-bold">{session.user_id.name}</h3>
+                                            <h3 className="text-lg font-bold">{booking.user?.name}</h3>
                                             <p className="text-slate-300 text-sm mt-1 flex items-center gap-2 font-medium">
-                                                <Calendar size={14} className="text-blue-400" /> {new Date(session.scheduled_at).toLocaleString()}
+                                                <Calendar size={14} className="text-blue-400" /> {new Date(booking.slotDate).toLocaleDateString()} at {booking.slotTime}
                                             </p>
                                         </div>
-                                        <Link to={`/session/${session.meeting_url}`} className="w-full sm:w-auto px-6 py-3 bg-white text-blue-900 rounded-xl font-bold transition-all shadow-lg hover:scale-105 cursor-pointer text-sm flex justify-center items-center gap-2">
+                                        <Link to={`/session/${booking.id}`} className="w-full sm:w-auto px-6 py-3 bg-white text-blue-900 rounded-xl font-bold transition-all shadow-lg hover:scale-105 cursor-pointer text-sm flex justify-center items-center gap-2">
                                             <Video size={16} /> Enter Room
                                         </Link>
                                     </div>

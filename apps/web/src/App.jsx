@@ -1,6 +1,8 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import NeonBackground from './components/NeonBackground';
+import { AnimatePresence } from 'framer-motion';
 import Dashboard from './pages/Dashboard';
 import Trainers from './pages/Trainers';
 import Auth from './pages/Auth';
@@ -18,7 +20,8 @@ function App() {
   const { user } = useAuthStore();
   return (
     <Router>
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-200">
+      <div className="min-h-screen bg-[#0a0a0f] text-white font-sans selection:bg-purple-500/30 relative overflow-x-hidden">
+        <NeonBackground />
         <Navbar />
         <Routes>
           <Route path="/auth" element={!user ? <Auth /> : <Navigate to="/" />} />
@@ -40,9 +43,9 @@ function App() {
           </Route>
           {/* Default fallback for unbuilt pages */}
           <Route path="*" element={
-            <div className="flex flex-col items-center justify-center h-[70vh]">
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">Coming Soon</h1>
-              <p className="text-slate-500 font-medium">This page is under construction by Angelina.</p>
+            <div className="flex flex-col items-center justify-center h-[70vh] relative z-10">
+              <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-[0_0_10px_purple]">Coming Soon</h1>
+              <p className="text-purple-300 font-medium">This page is under construction by Angelina.</p>
             </div>
           } />
         </Routes>

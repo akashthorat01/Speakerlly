@@ -48,4 +48,23 @@ const getTrainers = async (req, res) => {
     }
 }
 
-module.exports = { getTrainers };
+const addTrainer = async (req, res) => {
+    try {
+        const { name, bio, price, email, topics } = req.body;
+        const hashedPassword = await bcrypt.hash('password123', 10);
+        const user = await User.create({ name: name || 'New Trainer', email: email || `${Date.now()}@example.com`, password: hashedPassword, role: 'trainer' });
+        
+        const newTrainer = await Trainer.create({
+            user_id: user._id,
+            bio: bio || "No bio provided.",
+            price_per_session: price || 500,
+            topics: topics || ["General"]
+        });
+
+        res.status(201).json({ message: "Trainer added successfully", trainer: newTrainer });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+module.exports = { getTrainers, addTrainer };

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { User, Mail, Award, CheckCircle2, Activity, Edit2, Loader2, LogOut } from 'lucide-react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { getCurrentUser, updateCurrentUser } from '../api/userService';
+import { getProgressSummary } from '../api/progressService';
+import { getSessionHistory } from '../api/sessionService';
 
 const Profile = () => {
     const { user, logout } = useAuthStore();
@@ -16,9 +18,17 @@ const Profile = () => {
         if(!user) return;
         const fetchProfile = async () => {
             try {
-                const { data } = await axios.get(`http://localhost:5000/api/v1/users/me?userId=${user._id || user.id}`);
-                setStats(data.stats);
-                setFormData({ name: data.user.name, email: data.user.email });
+                const [userData, progressData, sessionsData] = await Promise.all([
+                    getCurrentUser(),
+                    getProgressSummary(),
+                    getSessionHistory()
+                ]);
+                
+                setStats({
+                    progress_score: Math.min((progressData.totalMinutes / 600) * 100, 100).toFixed(0),
+                    completed_sessions: sessionsData.filter(s => s.status === 'COMPLETED').length
+                });
+                setFormData({ name: userData.name, email: userData.email });
             } catch (error) {
                 console.error("Failed to fetch profile", error);
             } finally {
@@ -30,7 +40,7 @@ const Profile = () => {
 
     const handleSave = async () => {
         try {
-            await axios.put(`http://localhost:5000/api/v1/users/me?userId=${user._id || user.id}`, formData);
+            await updateCurrentUser(formData);
             setIsEditing(false);
             // Updating local storage state to reflect UI changes across the app immediately
             const safeUser = JSON.parse(localStorage.getItem('user'));
@@ -46,15 +56,15 @@ const Profile = () => {
         navigate('/auth');
     };
 
-    if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600 w-10 h-10" /></div>;
+    if (isLoading) return <div className="min-h-screen flex items-center justify-center relative z-10"><Loader2 className="animate-spin text-purple-500 w-12 h-12 drop-shadow-[0_0_15px_purple]" /></div>;
 
     return (
-        <div className="min-h-screen bg-slate-50 py-12 px-6 pb-24">
-            <div className="max-w-4xl mx-auto">
+        <div className="min-h-screen py-12 px-6 pb-24 text-white relative z-10">
+            <div className="max-w-4xl mx-auto mt-4">
                 <div className="flex justify-between items-center mb-10">
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Profile Settings</h1>
-                    <button onClick={handleLogout} className="flex items-center gap-2 bg-red-100/50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl font-bold transition-colors cursor-pointer text-sm shadow-sm group">
-                        <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" /> Sign Out
+                    <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-white tracking-tighter">Avatar Hub</h1>
+                    <button onClick={handleLogout} className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-5 py-2.5 rounded-full font-bold transition-all cursor-pointer text-sm border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)] group">
+                        <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" /> Disconnect Wallet
                     </button>
                 </div>
 
@@ -62,13 +72,13 @@ const Profile = () => {
                     
                     {/* Left Col: Personal Info */}
                     <div className="md:col-span-2 space-y-6">
-                        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+                        <div className="bg-[#1a0b2e]/60 backdrop-blur-xl p-8 rounded-[2rem] border border-white/5 shadow-[0_0_40px_rgba(168,85,247,0.1)] relative overflow-hidden group hover:border-purple-500/30 transition-colors">
+                            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-purple-600/30 to-pink-600/30 border-b border-white/5 opacity-50"></div>
                             
                             <div className="relative mt-4">
-                                <div className="w-24 h-24 bg-white rounded-full p-1.5 shadow-xl mb-6">
-                                    <div className="w-full h-full bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
-                                        <User size={40} />
+                                <div className="w-28 h-28 bg-black/50 backdrop-blur-md rounded-2xl p-2 shadow-[0_0_30px_rgba(168,85,247,0.3)] mb-6 border border-purple-500/50">
+                                    <div className="w-full h-full bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center text-white">
+                                        <User size={48} />
                                     </div>
                                 </div>
 
@@ -76,23 +86,23 @@ const Profile = () => {
                                     <div className="w-full">
                                         {!isEditing ? (
                                             <>
-                                                <h2 className="text-2xl font-bold text-slate-900 mb-1">{formData.name}</h2>
-                                                <p className="text-slate-500 font-medium flex items-center gap-2">
-                                                    <Mail size={16} className="text-slate-400" /> {formData.email}
+                                                <h2 className="text-3xl font-black text-white mb-1 drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">{formData.name}</h2>
+                                                <p className="text-slate-400 font-medium flex items-center gap-2 tracking-wide">
+                                                    <Mail size={16} className="text-purple-500" /> {formData.email}
                                                 </p>
-                                                <div className="mt-4 inline-block bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-md">
-                                                    {user.role === 'trainer' ? 'Speakerlly Trainer' : 'Plus Member'}
+                                                <div className="mt-4 inline-block bg-purple-500/20 border border-purple-500/30 text-pink-300 text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                                                    {user.role === 'trainer' ? 'Certified Explorer' : 'Elite Member'}
                                                 </div>
                                             </>
                                         ) : (
                                             <div className="space-y-5 w-full pr-0 sm:pr-8">
                                                 <div>
-                                                    <label className="text-xs font-bold text-slate-500 uppercase">Full Name</label>
-                                                    <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border-b-2 border-slate-200 focus:border-blue-600 py-2 outline-none font-bold text-lg transition-colors bg-transparent" />
+                                                    <label className="text-xs font-black text-purple-400 uppercase tracking-widest">Digital ID</label>
+                                                    <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border-b-2 border-white/10 focus:border-purple-500 py-3 outline-none font-bold text-xl transition-colors bg-white/5 backdrop-blur-md px-3 rounded-t-lg text-white mt-1" />
                                                 </div>
                                                 <div>
-                                                    <label className="text-xs font-bold text-slate-500 uppercase">Email Address</label>
-                                                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full border-b-2 border-slate-200 focus:border-blue-600 py-2 outline-none font-medium text-slate-600 transition-colors bg-transparent" />
+                                                    <label className="text-xs font-black text-purple-400 uppercase tracking-widest">Comms Node</label>
+                                                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full border-b-2 border-white/10 focus:border-purple-500 py-3 outline-none font-medium text-slate-300 transition-colors bg-white/5 backdrop-blur-md px-3 rounded-t-lg mt-1" />
                                                 </div>
                                             </div>
                                         )}
@@ -100,45 +110,49 @@ const Profile = () => {
                                     
                                     <button 
                                         onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-                                        className="bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 px-5 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center w-full sm:w-auto gap-2 whitespace-nowrap cursor-pointer shadow-sm"
+                                        className={`px-6 py-3 rounded-xl font-black transition-all flex items-center justify-center w-full sm:w-auto gap-2 whitespace-nowrap cursor-pointer shadow-sm border ${
+                                            isEditing 
+                                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+                                            : 'bg-white/5 text-purple-300 border-purple-500/30 hover:bg-white/10 hover:border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.1)]'
+                                        }`}
                                     >
-                                        {isEditing ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Edit2 size={16} />}
-                                        {isEditing ? 'Save Changes' : 'Edit Profile'}
+                                        {isEditing ? <CheckCircle2 size={16} /> : <Edit2 size={16} />}
+                                        {isEditing ? 'Confirm State' : 'Modify Code'}
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         {/* Plan Info */}
-                        <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
-                            <div className="absolute -right-10 -top-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl"></div>
-                            <h3 className="text-indigo-300 font-bold uppercase tracking-widest text-xs mb-2">Current Plan</h3>
-                            <div className="flex justify-between items-end">
+                        <div className="bg-[#1a0b2e]/80 backdrop-blur-xl p-8 rounded-[2rem] text-white shadow-[0_0_40px_rgba(217,70,239,0.15)] relative overflow-hidden border border-pink-500/30 group">
+                            <div className="absolute -right-10 -top-10 w-64 h-64 bg-pink-500/20 rounded-full blur-[80px] group-hover:bg-pink-500/30 transition-colors"></div>
+                            <h3 className="text-pink-400 font-black uppercase tracking-widest text-xs mb-3">Clearance Level</h3>
+                            <div className="flex justify-between items-end relative z-10">
                                 <div>
-                                    <h2 className="text-3xl font-black mb-1">Speakerlly Plus</h2>
-                                    <p className="text-slate-400 text-sm font-medium">Valid until Dec 2026</p>
+                                    <h2 className="text-3xl md:text-4xl font-black mb-1 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-white">Speakerly Genesis</h2>
+                                    <p className="text-purple-300/70 text-sm font-medium tracking-wide">Valid across the ecosystem</p>
                                 </div>
-                                <button onClick={() => alert("Premium upgrades checkout opening soon!")} className="bg-white text-indigo-900 px-5 py-2 rounded-xl font-bold text-sm hover:scale-105 transition-transform cursor-pointer shadow-lg">Upgrade</button>
+                                <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white px-6 py-2 rounded-xl font-bold text-sm border border-purple-400/30 shadow-[0_0_15px_rgba(217,70,239,0.4)]">Synced</div>
                             </div>
                         </div>
                     </div>
 
                     {/* Right Col: Stats */}
                     <div className="space-y-6">
-                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:border-blue-200 transition-colors">
-                            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mb-4 shadow-inner">
-                                <Award size={24} />
+                        <div className="bg-[#0f0a1a]/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/5 shadow-xl hover:border-purple-500/40 transition-colors group">
+                            <div className="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-400 mb-6 border border-purple-500/30 shadow-[0_0_15px_purple] group-hover:scale-110 transition-transform">
+                                <Award size={28} />
                             </div>
-                            <h3 className="text-slate-500 font-bold text-xs uppercase tracking-wider">Angelina Score</h3>
-                            <p className="text-4xl font-black text-slate-900 mt-1 tracking-tight">{stats?.progress_score || 0}<span className="text-xl text-slate-400 font-bold">/100</span></p>
+                            <h3 className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Grid Rating</h3>
+                            <p className="text-5xl font-black text-white mt-1 tracking-tighter drop-shadow-[0_0_10px_purple]">{stats?.progress_score || 0}<span className="text-2xl text-purple-500/50 font-bold">/100</span></p>
                         </div>
 
-                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:border-emerald-200 transition-colors">
-                            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-4 shadow-inner">
-                                <Activity size={24} />
+                        <div className="bg-[#0f0a1a]/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/5 shadow-xl hover:border-pink-500/40 transition-colors group">
+                            <div className="w-16 h-16 bg-pink-500/10 rounded-2xl flex items-center justify-center text-pink-400 mb-6 border border-pink-500/30 shadow-[0_0_15px_pink] group-hover:scale-110 transition-transform">
+                                <Activity size={28} />
                             </div>
-                            <h3 className="text-slate-500 font-bold text-xs uppercase tracking-wider">Total Sessions</h3>
-                            <p className="text-4xl font-black text-slate-900 mt-1 tracking-tight">{stats?.completed_sessions || 0}</p>
+                            <h3 className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Blocks Mined</h3>
+                            <p className="text-5xl font-black text-white mt-1 tracking-tighter drop-shadow-[0_0_10px_pink]">{stats?.completed_sessions || 0}</p>
                         </div>
                     </div>
 

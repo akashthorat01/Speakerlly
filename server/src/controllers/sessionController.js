@@ -7,7 +7,8 @@ const crypto = require('crypto');
 // Book a new Session
 const bookSession = async (req, res) => {
     try {
-        const { trainerId, date, time, price, userId } = req.body;
+        const { trainerId, date, time, price } = req.body;
+        const userId = req.user ? req.user._id : req.body.userId;
 
         if (!userId || !trainerId || !date || !time) {
             return res.status(400).json({ message: "Missing required fields" });
@@ -46,7 +47,7 @@ const bookSession = async (req, res) => {
 // Get User's Sessions
 const getUserSessions = async (req, res) => {
     try {
-         const { userId } = req.query; 
+         const userId = req.user ? req.user._id : req.query.userId; 
          if (!userId) {
              return res.status(400).json({ message: "User ID required" });
          }
@@ -67,7 +68,7 @@ const getUserSessions = async (req, res) => {
 // Get Trainer's Sessions
 const getTrainerSessions = async (req, res) => {
     try {
-        const { userId } = req.query;
+        const userId = req.user ? req.user._id : req.query.userId;
         const trainer = await Trainer.findOne({ user_id: userId });
         if (!trainer) return res.status(404).json({ message: "Trainer profile not found" });
 

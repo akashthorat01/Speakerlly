@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Clock, Video, Star, Loader2, ArrowRight } from 'lucide-react';
+import { Calendar, Clock, Video, Star, Loader2, ArrowRight, Zap, Target } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import axios from 'axios';
+import { getMyBookings } from '../api/bookingService';
 
 const History = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [sessions, setSessions] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -17,86 +17,96 @@ const History = () => {
         return;
     }
 
-    const fetchSessions = async () => {
+    const fetchBookings = async () => {
       try {
-        const { data } = await axios.get(`http://localhost:5000/api/v1/sessions/my-sessions?userId=${user.user?.id || user._id || user.id}`);
-        setSessions(data.sessions);
+        const data = await getMyBookings();
+        setBookings(data || []);
       } catch (error) {
-        console.error("Error fetching sessions:", error);
+        console.error("Error fetching bookings:", error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchSessions();
+    fetchBookings();
   }, [user, navigate]);
 
   return (
-    <div className="min-h-screen pb-20 bg-slate-50 pt-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-end mb-8 border-b border-slate-200 pb-6">
-            <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight">My Sessions</h1>
-                <p className="text-slate-500 font-medium mt-2">Manage your upcoming training classes and past history.</p>
+    <div className="min-h-screen pb-20 text-white relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 mt-4">
+        
+        {/* Header Block */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12 border-b border-white/10 pb-8 relative">
+           <div className="absolute -top-32 -left-32 w-64 h-64 bg-purple-600/20 blur-[100px] rounded-full point-events-none"></div>
+            <div className="relative z-10">
+                <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-white tracking-tighter">My Ledger</h1>
+                <p className="text-purple-300/80 font-medium mt-3 text-lg">Your chronological ecosystem of speaking sessions & drops.</p>
             </div>
-            <Link to="/trainers" className="bg-white border border-slate-200 text-slate-700 hover:text-blue-600 hover:border-blue-200 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm">
-                Book New
+            <Link to="/trainers" className="relative z-10 bg-white/5 border border-purple-500/30 text-purple-300 hover:text-white hover:bg-white/10 px-6 py-3 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                Mint New Session
             </Link>
         </div>
 
         {isLoading ? (
-            <div className="w-full py-20 flex flex-col items-center justify-center text-slate-400">
-                <Loader2 size={40} className="animate-spin mb-4 text-blue-500" />
-                <p className="font-semibold text-lg">Loading your schedule...</p>
+            <div className="w-full py-32 flex flex-col items-center justify-center text-purple-500">
+                <Loader2 size={50} className="animate-spin mb-6 drop-shadow-[0_0_15px_purple]" />
+                <p className="font-bold uppercase tracking-widest text-sm animate-pulse">Syncing Blockchain History...</p>
             </div>
-        ) : sessions?.length === 0 ? (
-            <div className="bg-white rounded-[2rem] p-12 text-center border border-slate-200 shadow-sm flex flex-col items-center mt-10">
-                <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 mb-6 border-8 border-white shadow-xl">
-                    <Calendar size={40} />
+        ) : bookings?.length === 0 ? (
+            <motion.div 
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="bg-[#1a0b2e]/60 backdrop-blur-xl border border-white/5 rounded-[2rem] p-16 text-center shadow-[0_0_40px_rgba(168,85,247,0.1)] flex flex-col items-center mt-10 relative overflow-hidden group hover:border-purple-500/30 transition-colors"
+            >
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5 pointer-events-none"></div>
+                <div className="w-24 h-24 bg-purple-500/10 rounded-full flex items-center justify-center text-purple-400 mb-6 border border-purple-500/20 shadow-[0_0_20px_purple] group-hover:scale-110 transition-transform duration-500">
+                    <Target size={40} />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-3">No Sessions Booked</h2>
-                <p className="text-slate-500 max-w-md mx-auto mb-8 text-[15px] font-medium leading-relaxed">You haven't scheduled any speaking sessions yet. Ready to start your journey to fluency?</p>
-                <Link to="/trainers" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl font-bold transition-transform hover:scale-105 shadow-xl shadow-blue-600/30">
-                    Find a Trainer
+                <h2 className="text-3xl font-black text-white mb-3 tracking-tighter">No Ledger History</h2>
+                <p className="text-purple-300/70 max-w-lg mx-auto mb-10 text-[16px] font-medium leading-relaxed">You haven't scheduled any speaking sessions or processed any contracts yet. Dive into the ecosystem now.</p>
+                <Link to="/trainers" className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-8 py-4 rounded-xl font-black tracking-widest uppercase transition-all shadow-[0_0_20px_purple] hover:shadow-[0_0_30px_#d946ef] cursor-pointer">
+                    Explore Roster
                 </Link>
-            </div>
+            </motion.div>
         ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
                 <AnimatePresence>
-                    {sessions?.map((session, idx) => (
+                    {bookings?.map((booking, idx) => (
                         <motion.div 
-                            key={session._id || idx}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-6 justify-between items-center group hover:border-blue-200 transition-colors"
+                            key={booking.id || idx}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                            whileHover={{ scale: 1.01 }}
+                            className="bg-[#0f0a1a]/80 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] border border-white/10 shadow-[0_0_30px_rgb(0,0,0)] flex flex-col md:flex-row gap-6 justify-between items-center group hover:border-purple-500/50 transition-all"
                         >
-                            <div className="flex gap-5 w-full sm:w-auto">
-                                <div className="hidden sm:flex w-16 h-16 bg-blue-50 rounded-full items-center justify-center text-blue-600 flex-shrink-0">
+                            <div className="flex gap-6 w-full md:w-auto items-center">
+                                <div className="hidden sm:flex w-16 h-16 bg-gradient-to-tr from-purple-600 to-pink-600 rounded-2xl items-center justify-center text-white flex-shrink-0 shadow-[0_0_15px_purple] border border-white/20 group-hover:rotate-6 transition-transform">
                                     <Clock size={28} />
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <div className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md">
-                                            {session.status}
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="bg-purple-500/20 text-pink-300 border border-pink-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-md shadow-[0_0_10px_purple]">
+                                            Contract {booking.status}
                                         </div>
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-900 mt-2">
-                                        Meeting with {session.trainer_id?.user_id?.name || "Trainer"}
+                                    <h3 className="text-xl md:text-2xl font-black text-white mt-2">
+                                        Session Block with <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">{booking.trainer?.name || "Trainer"}</span>
                                     </h3>
-                                    <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
-                                        <Calendar size={16} /> 
-                                        {new Date(session.scheduled_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {new Date(session.scheduled_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                    <p className="text-purple-300/70 font-medium flex items-center gap-2 mt-2">
+                                        <Calendar size={16} className="text-purple-500" /> 
+                                        {new Date(booking.slotDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at {booking.slotTime}
                                     </p>
                                 </div>
                             </div>
                             
-                            <div className="w-full sm:w-auto mt-4 sm:mt-0">
-                                {session.status === 'scheduled' ? (
-                                    <Link to={`/session/${session.meeting_url}`} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 group-hover:scale-105">
-                                        <Video size={18} /> Join Room
+                            <div className="w-full md:w-auto mt-4 md:mt-0 flex-shrink-0">
+                                {booking.status === 'CONFIRMED' ? (
+                                    <Link to={`/session/${booking.id}`} className="w-full md:w-auto bg-white/10 hover:bg-white/20 border border-purple-500/50 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(168,85,247,0.2)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)] flex items-center justify-center gap-3 group/btn">
+                                        <Video size={18} className="text-purple-400 group-hover/btn:scale-110 transition-transform" /> Connect to Grid
                                     </Link>
                                 ) : (
-                                    <button className="w-full sm:w-auto bg-slate-100 text-slate-500 px-6 py-3 rounded-xl font-bold border border-slate-200 cursor-not-allowed">
-                                        Completed
+                                    <button className="w-full md:w-auto bg-black/40 text-slate-500 px-8 py-4 rounded-xl font-bold border border-white/5 cursor-not-allowed">
+                                        {booking.status === 'PENDING' ? 'Awaiting Trainer' : 'Block Finalized'}
                                     </button>
                                 )}
                             </div>
